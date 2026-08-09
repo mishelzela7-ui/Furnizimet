@@ -1,0 +1,1138 @@
+<!DOCTYPE html>
+<html lang="sq">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Regjistri i Furnizimeve</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --paper:#F7F3E9;
+    --paper-dark:#EFE9D8;
+    --ink:#20291F;
+    --ink-soft:#5B6358;
+    --ledger:#2F5D50;
+    --ledger-dark:#20463C;
+    --rust:#B4472A;
+    --gold:#B4863A;
+    --line:#DAD2B8;
+    --white:#FFFDF8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper-dark);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+  }
+  .app{
+    display:grid;
+    grid-template-columns: 300px 1fr;
+    min-height:100vh;
+  }
+  @media (max-width:860px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{order:2;}
+  }
+
+  /* ---------- SIDEBAR: checkbook stub look ---------- */
+  .sidebar{
+    background:var(--ledger-dark);
+    color:var(--paper);
+    padding:28px 0;
+    display:flex;
+    flex-direction:column;
+    border-right:1px solid #14312A;
+  }
+  .brand{
+    padding:0 22px 22px 22px;
+    border-bottom:1px dashed rgba(247,243,233,0.25);
+    margin-bottom:14px;
+  }
+  .brand h1{
+    font-family:'Fraunces', serif;
+    font-size:20px;
+    font-weight:600;
+    margin:0 0 4px 0;
+    letter-spacing:0.2px;
+  }
+  .brand p{
+    margin:0;
+    font-size:12px;
+    color:rgba(247,243,233,0.6);
+  }
+  .new-btn{
+    margin:0 22px 18px 22px;
+    background:var(--rust);
+    color:var(--white);
+    border:none;
+    padding:11px 14px;
+    border-radius:3px;
+    font-family:'IBM Plex Sans';
+    font-weight:600;
+    font-size:13.5px;
+    cursor:pointer;
+    transition:filter 0.15s ease;
+  }
+  .new-btn:hover{filter:brightness(1.1);}
+  .invoice-list{
+    flex:1;
+    overflow-y:auto;
+    padding:0 12px;
+  }
+  .stub{
+    position:relative;
+    display:block;
+    width:100%;
+    text-align:left;
+    background:transparent;
+    border:none;
+    color:var(--paper);
+    padding:12px 10px;
+    margin-bottom:2px;
+    cursor:pointer;
+    border-radius:3px;
+    font-family:'IBM Plex Sans';
+  }
+  .stub:hover{background:rgba(247,243,233,0.06);}
+  .stub.active{background:rgba(247,243,233,0.12);}
+  .stub .num{
+    font-family:'IBM Plex Mono';
+    font-size:11px;
+    color:var(--gold);
+    letter-spacing:0.5px;
+  }
+  .stub .client{
+    font-size:13.5px;
+    font-weight:500;
+    margin-top:2px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .stub .meta{
+    font-size:11px;
+    color:rgba(247,243,233,0.5);
+    margin-top:2px;
+    font-family:'IBM Plex Mono';
+  }
+  .empty-hint{
+    color:rgba(247,243,233,0.4);
+    font-size:12.5px;
+    padding:14px 10px;
+    line-height:1.5;
+  }
+  .settings-toggle{
+    margin:14px 22px 0 22px;
+    padding-top:14px;
+    border-top:1px dashed rgba(247,243,233,0.25);
+  }
+  .settings-toggle summary{
+    cursor:pointer;
+    font-size:12.5px;
+    color:rgba(247,243,233,0.65);
+    list-style:none;
+  }
+  .settings-toggle summary::-webkit-details-marker{display:none;}
+  .settings-toggle summary:before{content:"⚙ ";}
+  .settings-fields{margin-top:10px;display:flex;flex-direction:column;gap:8px;}
+  .settings-fields input{
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(247,243,233,0.2);
+    color:var(--paper);
+    padding:7px 9px;
+    border-radius:3px;
+    font-size:12.5px;
+    font-family:'IBM Plex Sans';
+  }
+  .settings-fields input::placeholder{color:rgba(247,243,233,0.35);}
+
+  /* ---------- MAIN: the receipt ---------- */
+  main{
+    padding:40px 32px 60px 32px;
+    display:flex;
+    justify-content:center;
+  }
+  .receipt-wrap{
+    width:100%;
+    max-width:680px;
+  }
+  .toolbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-bottom:18px;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .toolbar-title{
+    font-family:'Fraunces', serif;
+    font-size:15px;
+    color:var(--ink-soft);
+  }
+  .toolbar-actions{display:flex;gap:8px;}
+  .btn{
+    border:1px solid var(--ledger);
+    background:transparent;
+    color:var(--ledger);
+    padding:9px 15px;
+    border-radius:3px;
+    font-size:13px;
+    font-weight:600;
+    font-family:'IBM Plex Sans';
+    cursor:pointer;
+    transition:all 0.15s ease;
+  }
+  .btn:hover{background:var(--ledger);color:var(--white);}
+  .btn.primary{
+    background:var(--ledger);
+    color:var(--white);
+  }
+  .btn.primary:hover{background:var(--ledger-dark);}
+  .btn.danger{
+    border-color:var(--rust);
+    color:var(--rust);
+  }
+  .btn.danger:hover{background:var(--rust);color:var(--white);}
+
+  .receipt{
+    background:var(--white);
+    border:1px solid var(--line);
+    box-shadow:0 2px 0 var(--line), 0 18px 40px -20px rgba(32,41,31,0.35);
+    position:relative;
+  }
+  .receipt-top{
+    padding:34px 38px 22px 38px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    border-bottom:2px solid var(--ink);
+  }
+  .receipt-top .biz h2{
+    font-family:'Fraunces', serif;
+    font-size:24px;
+    margin:0 0 4px 0;
+    font-weight:700;
+  }
+  .receipt-top .biz p{
+    margin:1px 0;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+  .receipt-top .doc{
+    text-align:right;
+  }
+  .receipt-top .doc .tag{
+    font-family:'IBM Plex Mono';
+    font-size:11px;
+    letter-spacing:2px;
+    color:var(--rust);
+    text-transform:uppercase;
+  }
+  .receipt-top .doc .num{
+    font-family:'Fraunces', serif;
+    font-size:22px;
+    font-weight:600;
+    margin-top:2px;
+  }
+
+  .meta-row{
+    display:flex;
+    justify-content:space-between;
+    padding:20px 38px 0 38px;
+    gap:24px;
+    flex-wrap:wrap;
+  }
+  .meta-block{flex:1;min-width:200px;}
+  .meta-block label{
+    display:block;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    color:var(--ink-soft);
+    margin-bottom:5px;
+  }
+  .meta-block input{
+    width:100%;
+    border:none;
+    border-bottom:1px solid var(--line);
+    background:transparent;
+    padding:6px 2px;
+    font-size:14px;
+    font-family:'IBM Plex Sans';
+    color:var(--ink);
+  }
+  .meta-block input:focus{outline:none;border-bottom-color:var(--ledger);}
+
+  table.items{
+    width:100%;
+    min-width:520px;
+    border-collapse:collapse;
+    margin:26px 0 0 0;
+  }
+  .items-scroll{
+    overflow-x:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+  table.items thead th{
+    text-align:left;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    color:var(--ink-soft);
+    padding:0 8px 8px 8px;
+    border-bottom:1.5px solid var(--ink);
+  }
+  table.items thead th:first-child{padding-left:38px;}
+  table.items thead th:last-child{padding-right:38px;}
+  table.items tbody td{
+    padding:9px 8px;
+    border-bottom:1px solid var(--line);
+    font-size:13.5px;
+    vertical-align:middle;
+  }
+  table.items tbody td:first-child{padding-left:38px;}
+  table.items tbody td:last-child{padding-right:38px;}
+  table.items input{
+    width:100%;
+    border:none;
+    background:transparent;
+    font-family:'IBM Plex Sans';
+    font-size:13.5px;
+    color:var(--ink);
+    padding:4px 2px;
+  }
+  table.items input:focus{outline:none;background:var(--paper);}
+  table.items input.num{
+    font-family:'IBM Plex Mono';
+    text-align:right;
+  }
+  table.items td.prod-cell{position:relative;}
+  table.items input.prod-input{
+    width:100%;
+    border:none;
+    background:transparent;
+    font-family:'IBM Plex Sans';
+    font-size:13.5px;
+    color:var(--ink);
+    padding:4px 2px;
+  }
+  table.items input.prod-input:focus{outline:none;background:var(--paper);}
+  .suggest-box{
+    position:fixed;
+    background:var(--white);
+    border:1px solid var(--line);
+    box-shadow:0 10px 24px -8px rgba(32,41,31,0.35);
+    border-radius:3px;
+    z-index:1000;
+    max-height:240px;
+    overflow-y:auto;
+  }
+  .suggest-item{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    padding:8px 12px;
+    font-size:13px;
+    cursor:pointer;
+    border-bottom:1px solid var(--line);
+  }
+  .suggest-item:last-child{border-bottom:none;}
+  .suggest-item:hover{background:var(--paper);}
+  .suggest-item .s-name{color:var(--ink);}
+  .suggest-item .s-price{
+    font-family:'IBM Plex Mono';
+    color:var(--ledger);
+    white-space:nowrap;
+  }
+  .suggest-item .s-cat{
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:0.5px;
+    color:var(--ink-soft);
+    display:block;
+  }
+  .col-qty, .col-price, .col-total{width:90px;}
+  .col-total{font-family:'IBM Plex Mono';text-align:right;color:var(--ink);}
+  .col-del{width:34px;text-align:center;}
+  .row-del{
+    background:none;border:none;color:var(--ink-soft);
+    cursor:pointer;font-size:15px;line-height:1;
+    padding:2px 6px;border-radius:3px;
+  }
+  .row-del:hover{color:var(--rust);background:var(--paper);}
+
+  .add-row-btn{
+    margin:12px 38px 0 38px;
+    background:none;
+    border:1px dashed var(--line);
+    color:var(--ink-soft);
+    padding:9px;
+    width:calc(100% - 76px);
+    border-radius:3px;
+    cursor:pointer;
+    font-size:12.5px;
+    font-family:'IBM Plex Sans';
+  }
+  .add-row-btn:hover{border-color:var(--ledger);color:var(--ledger);}
+
+  .totals{
+    margin:26px 38px 6px 38px;
+    padding-top:14px;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
+    gap:6px;
+  }
+  .totals .line{
+    display:flex;
+    justify-content:space-between;
+    width:260px;
+    font-size:13.5px;
+    color:var(--ink-soft);
+  }
+  .totals .line .val{
+    font-family:'IBM Plex Mono';
+    color:var(--ink);
+  }
+  .totals .grand{
+    display:flex;
+    justify-content:space-between;
+    width:260px;
+    font-size:19px;
+    font-weight:700;
+    font-family:'Fraunces', serif;
+    color:var(--ledger-dark);
+    border-top:2px solid var(--ink);
+    padding-top:10px;
+    margin-top:4px;
+  }
+  .totals .grand .val{font-family:'IBM Plex Mono';}
+
+  /* perforated / torn bottom edge — signature element */
+  .tear{
+    height:16px;
+    background:
+      radial-gradient(circle at 8px 0, transparent 8px, var(--white) 8.5px) top left/16px 16px repeat-x;
+    margin-top:8px;
+  }
+  .stamp{
+    display:inline-block;
+    border:2px solid var(--rust);
+    color:var(--rust);
+    font-family:'IBM Plex Mono';
+    font-weight:600;
+    font-size:11px;
+    letter-spacing:2px;
+    padding:5px 12px;
+    border-radius:3px;
+    transform:rotate(-6deg);
+    position:absolute;
+    right:38px;
+    bottom:34px;
+    opacity:0.85;
+  }
+  .note-row{
+    padding:0 38px 30px 38px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:20px;
+  }
+  .note-row textarea{
+    flex:1;
+    border:1px solid var(--line);
+    background:var(--paper);
+    border-radius:3px;
+    padding:10px 12px;
+    font-family:'IBM Plex Sans';
+    font-size:12.5px;
+    color:var(--ink-soft);
+    resize:vertical;
+    min-height:44px;
+  }
+  .save-status{
+    text-align:center;
+    font-size:11.5px;
+    color:var(--ink-soft);
+    margin-top:14px;
+    font-family:'IBM Plex Mono';
+  }
+
+  /* ---------- MOBILE ---------- */
+  @media (max-width:640px){
+    main{padding:18px 12px 40px 12px;}
+    .sidebar{padding:18px 0;}
+    .brand{padding:0 16px 16px 16px;}
+    .brand h1{font-size:17px;}
+    .new-btn{margin:0 16px 14px 16px;padding:12px 14px;font-size:14px;}
+    .invoice-list{padding:0 8px;}
+    .settings-toggle{margin:14px 16px 0 16px;}
+
+    .toolbar{margin-bottom:14px;}
+    .toolbar-title{font-size:13px;}
+    .toolbar-actions{width:100%;}
+    .btn{flex:1;padding:11px 10px;font-size:13px;}
+
+    .receipt-top{
+      flex-direction:column;
+      align-items:flex-start;
+      gap:14px;
+      padding:22px 18px 18px 18px;
+    }
+    .receipt-top .doc{text-align:left;}
+    .receipt-top .biz h2{font-size:19px;}
+
+    .meta-row{padding:16px 18px 0 18px;gap:14px;}
+    .meta-block{min-width:100%;}
+
+    table.items{min-width:460px;margin-top:18px;}
+    table.items thead th:first-child{padding-left:18px;}
+    table.items thead th:last-child{padding-right:18px;}
+    table.items tbody td:first-child{padding-left:18px;}
+    table.items tbody td:last-child{padding-right:18px;}
+    .col-qty, .col-price, .col-total{width:74px;}
+
+    .add-row-btn{
+      margin:12px 18px 0 18px;
+      width:calc(100% - 36px);
+    }
+
+    .totals{margin:22px 18px 6px 18px;}
+    .totals .line, .totals .grand{width:100%;max-width:280px;}
+    .totals .grand{font-size:17px;}
+
+    .note-row{padding:0 18px 24px 18px;flex-direction:column;align-items:stretch;}
+
+    .stamp{right:18px;bottom:24px;}
+  }
+</style>
+</head>
+
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <h1>Regjistri i Furnizimeve</h1>
+      <p>Faturat e biznesit tuaj</p>
+    </div>
+    <button class="new-btn" id="newInvoiceBtn">+ Faturë e re</button>
+    <div class="invoice-list" id="invoiceList"></div>
+    <details class="settings-toggle">
+      <summary>Të dhënat e biznesit</summary>
+      <div class="settings-fields">
+        <input id="setBizName" placeholder="Emri i biznesit">
+        <input id="setBizAddr" placeholder="Adresa">
+        <input id="setBizNipt" placeholder="NIPT / NUIS">
+        <input id="setBizPhone" placeholder="Telefoni">
+      </div>
+    </details>
+  </aside>
+
+  <main>
+    <div class="receipt-wrap">
+      <div class="toolbar">
+        <div class="toolbar-title">Faturë furnizimi</div>
+        <div class="toolbar-actions">
+          <button class="btn danger" id="deleteBtn">Fshi</button>
+          <button class="btn primary" id="pdfBtn">Shkarko PDF</button>
+        </div>
+      </div>
+
+      <div class="receipt" id="receipt">
+        <div class="receipt-top">
+          <div class="biz">
+            <h2 id="bizNameOut">Tabachino Locker</h2>
+            <p id="bizAddrOut"></p>
+            <p id="bizNiptOut"></p>
+            <p id="bizPhoneOut"></p>
+          </div>
+          <div class="doc">
+            <div class="tag">Furnizim</div>
+            <div class="num" id="invNumOut">#0001</div>
+          </div>
+        </div>
+
+        <div class="meta-row">
+          <div class="meta-block">
+            <label>Furnitor / Klient</label>
+            <input id="clientInput" placeholder="Emri i furnitorit ose klientit">
+          </div>
+          <div class="meta-block">
+            <label>Data</label>
+            <input id="dateInput" type="date">
+          </div>
+        </div>
+
+        <div class="items-scroll">
+        <table class="items">
+          <thead>
+            <tr>
+              <th>Produkti</th>
+              <th class="col-qty">Sasia</th>
+              <th class="col-price">Çmimi</th>
+              <th class="col-total">Total</th>
+              <th class="col-del"></th>
+            </tr>
+          </thead>
+          <tbody id="itemsBody"></tbody>
+        </table>
+        </div>
+        <button class="add-row-btn" id="addRowBtn">+ Shto produkt</button>
+
+        <div class="totals">
+          <div class="line"><span>Nëntotali</span><span class="val" id="subtotalOut">0.00 L</span></div>
+          <div class="grand"><span>Totali</span><span class="val" id="totalOut">0.00 L</span></div>
+        </div>
+
+        <div class="note-row">
+          <textarea id="noteInput" placeholder="Shënim (opsionale)…"></textarea>
+        </div>
+
+        <div class="tear"></div>
+      </div>
+      <div class="save-status" id="saveStatus">Ruajtur automatikisht</div>
+    </div>
+  </main>
+</div>
+
+<script>
+const { jsPDF } = window.jspdf;
+
+const CATALOG = [
+  { category:"Terea", items:[
+    { name:"TEREA SILVER (8)", price:2780 },
+    { name:"TEREA TURQUOISE MNT 10", price:2780 },
+    { name:"TEREA ZING WAVE", price:2780 },
+    { name:"TEREA PURPLEWA MNT (9)", price:2780 },
+    { name:"TEREA SUMMER WAVE MNT (7)", price:2780 },
+    { name:"TEREA SAKURA WAVE (4)", price:2780 },
+    { name:"TEREA RUBY WAVE (2)", price:2780 },
+    { name:"TEREA RUSSET (10)", price:2780 },
+  ]},
+  { category:"Marlboro / Philip Morris", items:[
+    { name:"MARLBO PREMI BLCK (8)", price:4620 },
+    { name:"MARLBORO GOLD (10)", price:3780 },
+    { name:"MARLBORO TOUCH (4MG) (10)", price:3600 },
+    { name:"MARLBORO TOUCH 6 (7)", price:3600 },
+    { name:"MARLBORO TOUCH XL (14)", price:3300 },
+    { name:"MARL SLIMS 100 BOX 20 (5)", price:2800 },
+    { name:"MARLBORO FINE TUNE", price:3020 },
+    { name:"PHILIP MORRIS SUPREME (5)", price:3020 },
+    { name:"PHILIP MORRIS COMPAC6", price:2840 },
+  ]},
+  { category:"Dunhill / Kent / Rothmans", items:[
+    { name:"Dunhill FC 4 mg", price:3780 },
+    { name:"Dunhill Essence 4 mg", price:3500 },
+    { name:"Dunhill Prime", price:3780 },
+    { name:"Kent HD Infina INS 1", price:3600 },
+    { name:"Kent Nanotek Infina", price:3300 },
+    { name:"Rothmans Leggera", price:2840 },
+    { name:"Kent Crystal 4", price:3100 },
+  ]},
+  { category:"Duhan i thjeshtë / Winston / Camel", items:[
+    { name:"Old Holborn Yellow 30g", price:4650 },
+    { name:"Old Holborn Blonde 30g", price:4650 },
+    { name:"Camel Blue KS", price:3130 },
+    { name:"Winston XS Xstyle Silver KS", price:2620 },
+    { name:"Winston Blue KS", price:2980 },
+    { name:"Winston XS Xstyle Silver 100s", price:2790 },
+    { name:"Winston Fine Line Gold", price:2340 },
+    { name:"PM Camel Legend Blue KS", price:2790 },
+  ]},
+];
+const CATALOG_PRICE = {};
+CATALOG.forEach(g=>g.items.forEach(it=>{ CATALOG_PRICE[it.name] = it.price; }));
+
+let settings = { bizName:"Tabachino Locker", bizAddr:"", bizNipt:"", bizPhone:"" };
+let invoices = [];
+let currentId = null;
+let saveTimer = null;
+
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function fmt(n){ return (Math.round(n*100)/100).toFixed(2) + " L"; }
+
+// Storage layer: uses Claude's window.storage when running inside claude.ai,
+// falls back to the browser's localStorage when run standalone (e.g. on localhost).
+const store = {
+  async get(key){
+    if(window.storage){
+      try{
+        const r = await window.storage.get(key, false);
+        return r ? r.value : null;
+      }catch(e){ return null; }
+    }
+    try{ return localStorage.getItem('tabachino_' + key); }catch(e){ return null; }
+  },
+  async set(key, value){
+    if(window.storage){
+      await window.storage.set(key, value, false);
+      return;
+    }
+    localStorage.setItem('tabachino_' + key, value);
+  }
+};
+
+async function loadAll(){
+  try{
+    const s = await store.get('settings');
+    if(s) settings = JSON.parse(s);
+  }catch(e){}
+  try{
+    const inv = await store.get('invoices');
+    if(inv) invoices = JSON.parse(inv);
+  }catch(e){}
+
+  document.getElementById('setBizName').value = settings.bizName || "";
+  document.getElementById('setBizAddr').value = settings.bizAddr || "";
+  document.getElementById('setBizNipt').value = settings.bizNipt || "";
+  document.getElementById('setBizPhone').value = settings.bizPhone || "";
+  updateBizOut();
+
+  if(invoices.length === 0){
+    createInvoice();
+  } else {
+    currentId = invoices[0].id;
+  }
+  renderList();
+  renderCurrent();
+}
+
+function scheduleSave(){
+  document.getElementById('saveStatus').textContent = "Duke ruajtur…";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(persist, 500);
+}
+async function persist(){
+  try{
+    await store.set('settings', JSON.stringify(settings));
+    await store.set('invoices', JSON.stringify(invoices));
+    document.getElementById('saveStatus').textContent = "Ruajtur automatikisht";
+  }catch(e){
+    document.getElementById('saveStatus').textContent = "Gabim gjatë ruajtjes";
+  }
+}
+
+
+function nextInvoiceNumber(){
+  const n = invoices.length + 1;
+  return "#" + String(n).padStart(4,'0');
+}
+
+function createInvoice(){
+  const inv = {
+    id: uid(),
+    number: nextInvoiceNumber(),
+    client: "",
+    date: new Date().toISOString().slice(0,10),
+    items: [ {id:uid(), name:"", qty:1, price:0} ],
+    note: ""
+  };
+  invoices.unshift(inv);
+  currentId = inv.id;
+  renumber();
+  renderList();
+  renderCurrent();
+  scheduleSave();
+}
+
+function renumber(){
+  // number by chronological order (oldest = 0001), list itself stays newest-first
+  const sorted = [...invoices].sort((a,b)=>a.id.localeCompare(b.id));
+  sorted.forEach((inv,idx)=>{ inv.number = "#" + String(idx+1).padStart(4,'0'); });
+}
+
+function getCurrent(){ return invoices.find(i=>i.id===currentId); }
+
+function renderList(){
+  const list = document.getElementById('invoiceList');
+  list.innerHTML = "";
+  if(invoices.length === 0){
+    list.innerHTML = '<div class="empty-hint">Asnjë faturë ende. Krijo një me butonin sipër.</div>';
+    return;
+  }
+  invoices.forEach(inv=>{
+    const total = calcTotals(inv).total;
+    const btn = document.createElement('button');
+    btn.className = 'stub' + (inv.id===currentId ? ' active' : '');
+    btn.innerHTML = `
+      <div class="num">${inv.number}</div>
+      <div class="client">${inv.client || 'Pa emër'}</div>
+      <div class="meta">${inv.date} · ${fmt(total)}</div>
+    `;
+    btn.onclick = ()=>{ currentId = inv.id; renderList(); renderCurrent(); };
+    list.appendChild(btn);
+  });
+}
+
+function calcTotals(inv){
+  const subtotal = inv.items.reduce((s,it)=> s + (Number(it.qty)||0) * (Number(it.price)||0), 0);
+  return { subtotal, total: subtotal };
+}
+
+function updateBizOut(){
+  document.getElementById('bizNameOut').textContent = settings.bizName || "Tabachino Locker";
+  document.getElementById('bizAddrOut').textContent = settings.bizAddr || "";
+  document.getElementById('bizNiptOut').textContent = settings.bizNipt ? ("NIPT: " + settings.bizNipt) : "";
+  document.getElementById('bizPhoneOut').textContent = settings.bizPhone ? ("Tel: " + settings.bizPhone) : "";
+}
+
+function renderCurrent(){
+  const inv = getCurrent();
+  if(!inv) return;
+  document.getElementById('invNumOut').textContent = inv.number;
+  document.getElementById('clientInput').value = inv.client;
+  document.getElementById('dateInput').value = inv.date;
+  document.getElementById('noteInput').value = inv.note || "";
+
+  const body = document.getElementById('itemsBody');
+  body.innerHTML = "";
+  inv.items.forEach(item=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="prod-cell">
+        <input type="text" class="prod-input" data-id="${item.id}" value="${escapeHtml(item.name)}" placeholder="Shkruaj emrin e produktit…" autocomplete="off">
+        <div class="suggest-box" data-id="${item.id}" style="display:none;"></div>
+      </td>
+      <td class="col-qty"><input type="number" min="0" step="1" class="num" value="${item.qty}" data-field="qty" data-id="${item.id}"></td>
+      <td class="col-price"><input type="number" min="0" step="0.01" class="num" value="${item.price}" data-field="price" data-id="${item.id}"></td>
+      <td class="col-total">${fmt((Number(item.qty)||0)*(Number(item.price)||0))}</td>
+      <td class="col-del"><button class="row-del" data-id="${item.id}" title="Fshi rreshtin">✕</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('input.prod-input').forEach(inp=>{
+    inp.addEventListener('input', onProductNameInput);
+    inp.addEventListener('focus', onProductNameFocus);
+    inp.addEventListener('blur', onProductNameBlur);
+  });
+  body.querySelectorAll('input[data-field="qty"], input[data-field="price"]').forEach(inp=>{
+    inp.addEventListener('input', onItemInput);
+  });
+  body.querySelectorAll('.row-del').forEach(btn=>{
+    btn.addEventListener('click', onItemDelete);
+  });
+
+  renderTotals();
+}
+
+function findMatches(query){
+  const q = query.trim().toLowerCase();
+  if(!q) return [];
+  const matches = [];
+  CATALOG.forEach(group=>{
+    group.items.forEach(it=>{
+      if(it.name.toLowerCase().includes(q)) matches.push({ ...it, category: group.category });
+    });
+  });
+  return matches.slice(0,8);
+}
+
+function positionSuggestBox(id){
+  const input = document.querySelector(`input.prod-input[data-id="${id}"]`);
+  const box = document.querySelector(`.suggest-box[data-id="${id}"]`);
+  if(!input || !box) return;
+  const rect = input.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const spaceBelow = vh - rect.bottom;
+  const width = Math.max(rect.width, 220);
+  let left = rect.left;
+  if(left + width > vw - 8) left = Math.max(8, vw - width - 8);
+  box.style.width = width + 'px';
+  box.style.left = left + 'px';
+  if(spaceBelow < 200 && rect.top > spaceBelow){
+    box.style.top = 'auto';
+    box.style.bottom = (vh - rect.top + 2) + 'px';
+    box.style.maxHeight = Math.min(240, rect.top - 12) + 'px';
+  } else {
+    box.style.bottom = 'auto';
+    box.style.top = (rect.bottom + 2) + 'px';
+    box.style.maxHeight = Math.min(240, spaceBelow - 12) + 'px';
+  }
+}
+
+function renderSuggestions(id, query){
+  const box = document.querySelector(`.suggest-box[data-id="${id}"]`);
+  if(!box) return;
+  const matches = findMatches(query);
+  if(matches.length === 0){
+    box.style.display = 'none';
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = matches.map(it => `
+    <div class="suggest-item" data-id="${id}" data-name="${escapeHtml(it.name)}" data-price="${it.price}">
+      <span><span class="s-cat">${escapeHtml(it.category)}</span>${escapeHtml(it.name)}</span>
+      <span class="s-price">${fmt(it.price)}</span>
+    </div>
+  `).join('');
+  box.style.display = 'block';
+  positionSuggestBox(id);
+  box.querySelectorAll('.suggest-item').forEach(el=>{
+    el.addEventListener('mousedown', onSuggestionPick);
+  });
+}
+
+function closeAllSuggestions(){
+  document.querySelectorAll('.suggest-box').forEach(b=>{ b.style.display='none'; });
+}
+
+function onProductNameInput(e){
+  const inv = getCurrent();
+  const id = e.target.dataset.id;
+  const item = inv.items.find(i=>i.id===id);
+  if(!item) return;
+  item.name = e.target.value;
+  renderRowTotal(id);
+  renderList();
+  scheduleSave();
+  renderSuggestions(id, e.target.value);
+}
+
+function onProductNameFocus(e){
+  closeAllSuggestions();
+  renderSuggestions(e.target.dataset.id, e.target.value);
+}
+
+function onProductNameBlur(e){
+  const id = e.target.dataset.id;
+  setTimeout(()=>{
+    const box = document.querySelector(`.suggest-box[data-id="${id}"]`);
+    if(box) box.style.display = 'none';
+  }, 150);
+}
+
+function onSuggestionPick(e){
+  const el = e.currentTarget;
+  const id = el.dataset.id;
+  const name = el.dataset.name;
+  const price = Number(el.dataset.price);
+  const inv = getCurrent();
+  const item = inv.items.find(i=>i.id===id);
+  if(!item) return;
+  item.name = name;
+  item.price = price;
+  const row = document.querySelector(`input.prod-input[data-id="${id}"]`).closest('tr');
+  row.querySelector('input.prod-input').value = name;
+  row.querySelector('input[data-field="price"]').value = price;
+  closeAllSuggestions();
+  renderRowTotal(id);
+  renderTotals();
+  renderList();
+  scheduleSave();
+}
+
+function escapeHtml(s){
+  return (s||"").replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function onItemInput(e){
+  const inv = getCurrent();
+  const id = e.target.dataset.id;
+  const field = e.target.dataset.field;
+  const item = inv.items.find(i=>i.id===id);
+  if(!item) return;
+  item[field] = e.target.value;
+  renderRowTotal(id);
+  renderTotals();
+  renderList();
+  scheduleSave();
+}
+
+function renderRowTotal(id){
+  const inv = getCurrent();
+  const item = inv.items.find(i=>i.id===id);
+  const row = document.querySelector(`.row-del[data-id="${id}"]`).closest('tr');
+  row.querySelector('.col-total').textContent = fmt((Number(item.qty)||0)*(Number(item.price)||0));
+}
+
+function onItemDelete(e){
+  const inv = getCurrent();
+  const id = e.target.dataset.id;
+  inv.items = inv.items.filter(i=>i.id!==id);
+  if(inv.items.length===0){
+    inv.items.push({id:uid(), name:"", qty:1, price:0});
+  }
+  renderCurrent();
+  renderList();
+  scheduleSave();
+}
+
+function renderTotals(){
+  const inv = getCurrent();
+  const { subtotal, total } = calcTotals(inv);
+  document.getElementById('subtotalOut').textContent = fmt(subtotal);
+  document.getElementById('totalOut').textContent = fmt(total);
+}
+
+document.getElementById('newInvoiceBtn').onclick = createInvoice;
+
+document.getElementById('addRowBtn').onclick = ()=>{
+  const inv = getCurrent();
+  inv.items.push({id:uid(), name:"", qty:1, price:0});
+  renderCurrent();
+  scheduleSave();
+};
+
+document.getElementById('clientInput').addEventListener('input', e=>{
+  getCurrent().client = e.target.value;
+  renderList();
+  scheduleSave();
+});
+document.getElementById('dateInput').addEventListener('input', e=>{
+  getCurrent().date = e.target.value;
+  renderList();
+  scheduleSave();
+});
+document.getElementById('noteInput').addEventListener('input', e=>{
+  getCurrent().note = e.target.value;
+  scheduleSave();
+});
+document.getElementById('deleteBtn').onclick = ()=>{
+  if(invoices.length <= 1){
+    alert("Duhet të ketë të paktën një faturë.");
+    return;
+  }
+  if(!confirm("Të fshihet kjo faturë?")) return;
+  invoices = invoices.filter(i=>i.id!==currentId);
+  currentId = invoices[0].id;
+  renumber();
+  renderList();
+  renderCurrent();
+  scheduleSave();
+};
+
+['setBizName','setBizAddr','setBizNipt','setBizPhone'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', e=>{
+    const map = { setBizName:'bizName', setBizAddr:'bizAddr', setBizNipt:'bizNipt', setBizPhone:'bizPhone' };
+    settings[map[id]] = e.target.value;
+    updateBizOut();
+    scheduleSave();
+  });
+});
+
+document.getElementById('pdfBtn').onclick = ()=>{
+  const inv = getCurrent();
+  const { subtotal, total } = calcTotals(inv);
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const pageW = 210;
+  const marginX = 20;
+  let y = 22;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(18);
+  doc.text(settings.bizName || "Tabachino Locker", marginX, y);
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(90,90,90);
+  y += 6;
+  if(settings.bizAddr){ doc.text(settings.bizAddr, marginX, y); y += 5; }
+  if(settings.bizNipt){ doc.text("NIPT: " + settings.bizNipt, marginX, y); y += 5; }
+  if(settings.bizPhone){ doc.text("Tel: " + settings.bizPhone, marginX, y); y += 5; }
+
+  doc.setTextColor(30,30,30);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.text("FATURË FURNIZIMI", pageW - marginX, 22, { align:'right' });
+  doc.setFontSize(11);
+  doc.text(inv.number, pageW - marginX, 29, { align:'right' });
+
+  y = Math.max(y, 40) + 6;
+  doc.setDrawColor(30,30,30);
+  doc.setLineWidth(0.6);
+  doc.line(marginX, y, pageW - marginX, y);
+  y += 8;
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10);
+  doc.setTextColor(90,90,90);
+  doc.text("FURNITOR / KLIENT", marginX, y);
+  doc.text("DATA", pageW - marginX - 40, y);
+  y += 5;
+  doc.setFontSize(12);
+  doc.setTextColor(20,20,20);
+  doc.text(inv.client || "-", marginX, y);
+  doc.text(inv.date || "-", pageW - marginX - 40, y);
+  y += 10;
+
+  // table header
+  const col = { name: marginX, qty: 118, price: 145, total: 175 };
+  doc.setFillColor(32,41,31);
+  doc.rect(marginX, y-5, pageW - marginX*2, 8, 'F');
+  doc.setTextColor(255,255,255);
+  doc.setFontSize(9);
+  doc.setFont('helvetica','bold');
+  doc.text("PRODUKTI", col.name+2, y);
+  doc.text("SASIA", col.qty, y);
+  doc.text("ÇMIMI", col.price, y);
+  doc.text("TOTALI", pageW - marginX - 2, y, { align:'right' });
+  y += 9;
+
+  doc.setFont('helvetica','normal');
+  doc.setFontSize(10.5);
+  doc.setTextColor(20,20,20);
+  inv.items.forEach((item, idx)=>{
+    if(y > 265){ doc.addPage(); y = 22; }
+    const lineTotal = (Number(item.qty)||0)*(Number(item.price)||0);
+    if(idx % 2 === 1){
+      doc.setFillColor(247,243,233);
+      doc.rect(marginX, y-4.5, pageW - marginX*2, 7, 'F');
+    }
+    doc.text(item.name || "-", col.name+2, y);
+    doc.text(String(item.qty||0), col.qty, y);
+    doc.text((Number(item.price)||0).toFixed(2), col.price, y);
+    doc.text(lineTotal.toFixed(2) + " L", pageW - marginX - 2, y, { align:'right' });
+    y += 7;
+  });
+
+  y += 4;
+  doc.setDrawColor(200,200,200);
+  doc.line(pageW - marginX - 80, y, pageW - marginX, y);
+  y += 7;
+
+  doc.setFontSize(10.5);
+  doc.setTextColor(90,90,90);
+  doc.text("Nëntotali", pageW - marginX - 80, y);
+  doc.setTextColor(20,20,20);
+  doc.text(subtotal.toFixed(2) + " L", pageW - marginX, y, { align:'right' });
+  y += 6;
+
+  doc.setDrawColor(20,20,20);
+  doc.setLineWidth(0.6);
+  doc.line(pageW - marginX - 80, y, pageW - marginX, y);
+  y += 8;
+
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.setTextColor(47,93,80);
+  doc.text("TOTALI", pageW - marginX - 80, y);
+  doc.text(total.toFixed(2) + " L", pageW - marginX, y, { align:'right' });
+  y += 14;
+
+  if(inv.note){
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9.5);
+    doc.setTextColor(90,90,90);
+    doc.text("Shënim:", marginX, y);
+    y += 5;
+    const noteLines = doc.splitTextToSize(inv.note, pageW - marginX*2);
+    doc.text(noteLines, marginX, y);
+  }
+
+  const fileName = "Fature_" + inv.number.replace('#','') + (inv.client ? ("_" + inv.client.replace(/[^a-zA-Z0-9]/g,'_')) : "") + ".pdf";
+  doc.save(fileName);
+};
+
+window.addEventListener('scroll', closeAllSuggestions, true);
+window.addEventListener('resize', closeAllSuggestions);
+
+loadAll();
+</script>
+</body>
+</html>
